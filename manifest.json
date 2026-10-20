@@ -1,0 +1,87 @@
+{
+  "manifest_version": 3,
+  "name": "Copyfeed \u2014 Creator Research",
+  "version": "0.16.0",
+  "minimum_chrome_version": "120",
+  "description": "Local creator research for Instagram, YouTube, Facebook and TikTok. Rank posts, discover outliers, save hooks and export evidence.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "downloads",
+    "alarms",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://www.instagram.com/*",
+    "https://www.tiktok.com/*",
+    "https://www.youtube.com/*",
+    "https://www.facebook.com/*",
+    "https://copyfeed.in/*",
+    "https://*.cdninstagram.com/*",
+    "https://*.fbcdn.net/*",
+    "https://*.tiktokcdn.com/*",
+    "https://*.tiktokcdn-us.com/*",
+    "https://*.tiktokcdn-eu.com/*",
+    "https://huggingface.co/*",
+    "https://*.huggingface.co/*",
+    "https://*.hf.co/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Copyfeed",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.instagram.com/*",
+        "https://www.tiktok.com/*",
+        "https://www.youtube.com/*",
+        "https://www.facebook.com/*"
+      ],
+      "js": [
+        "page.bundle.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.instagram.com/*",
+        "https://www.tiktok.com/*",
+        "https://www.youtube.com/*",
+        "https://www.facebook.com/*"
+      ],
+      "js": [
+        "content.bundle.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://copyfeed.in/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; img-src 'self' https: data:; media-src https: blob:; connect-src 'self' https://*.cdninstagram.com https://*.fbcdn.net https://*.tiktokcdn.com https://*.tiktokcdn-us.com https://*.tiktokcdn-eu.com https://*.tiktok.com https://huggingface.co https://*.huggingface.co https://*.hf.co;"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "homepage_url": "https://copyfeed.in"
+}

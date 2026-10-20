@@ -1,0 +1,13 @@
+/* Original shared research model for the in-page and browser workspaces. */
+(()=>{
+ const E=globalThis.CopyfeedExtractors;
+ function rank(rows){const groups=new Map();for(const p of rows){const metric=p.mediaType==='image'||p.mediaType==='carousel'?'likes':'views',value=p[metric],key=p.platform+':'+p.creator+':'+metric;if(p.creator&&Number.isFinite(value)){if(!groups.has(key))groups.set(key,[]);groups.get(key).push(value)}}const medians=new Map();for(const [key,a] of groups){a.sort((a,b)=>a-b);if(a.length>=3)medians.set(key,(a[Math.floor(a.length/2)]+a[Math.floor((a.length-1)/2)])/2)}return rows.map(p=>{const metric=p.mediaType==='image'||p.mediaType==='carousel'?'likes':'views',m=medians.get(p.platform+':'+p.creator+':'+metric);return {...p,outlier:m>0&&p[metric]!=null?p[metric]/m:null,outlierMetric:metric}})}
+ function filter(rows,f={}){return rank(rows).filter(p=>(!f.query||`${p.title} ${p.caption} ${p.creator} ${p.transcript||''}`.toLowerCase().includes(f.query.toLowerCase()))&&(!f.creator||p.creator===f.creator)&&(!f.saved||p.saved)&&(!f.kind||p.mediaType===f.kind)&&(!f.from||p.createdAt&&p.createdAt.slice(0,10)>=f.from)&&(!f.to||p.createdAt&&p.createdAt.slice(0,10)<=f.to)&&(f.min==null||p[f.metric||'views']!=null&&p[f.metric||'views']>=f.min)&&(f.max==null||p[f.metric||'views']!=null&&p[f.metric||'views']<=f.max)).sort((a,b)=>f.sort==='oldest'?(Date.parse(a.createdAt)||Infinity)-(Date.parse(b.createdAt)||Infinity):f.sort==='newest'?(Date.parse(b.createdAt)||0)-(Date.parse(a.createdAt)||0):(b[f.sort||'outlier']??-1)-(a[f.sort||'outlier']??-1))}
+ const fields=['id','platform','capturedAt','baseline','baselineSample','engagementRate','shareabilityRate','saveRate','viewsPerDay','growthVelocity','opportunityScore','creator','url','title','caption','createdAt','views','likes','comments','shares','saves','outlier','transcript','notes'];
+ const safe=v=>{const s=v==null?'':String(v);return /^[\s]*[=+@-]/.test(s)?"'"+s:s};
+ function csv(rows){return '\uFEFF'+[fields,...rows.map(p=>fields.map(k=>safe(p[k])))].map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n')}
+ function tsv(rows){return [fields,...rows.map(p=>fields.map(k=>safe(p[k]).replace(/[\t\r\n]+/g,' ')))].map(r=>r.join('\t')).join('\n')}
+ function srt(chunks){const time=n=>new Date(Math.max(0,n)*1000).toISOString().slice(11,23).replace('.',',');return chunks.map((x,i)=>`${i+1}\n${time(x.timestamp[0])} --> ${time(x.timestamp[1]??x.timestamp[0]+2)}\n${x.text.trim()}\n`).join('\n')}
+ function filename(p,index=0){return String(index+1).padStart(3,'0')+'-'+String(p.creator||'creator').replace(/[^\w-]/g,'_')+'-'+String(p.id||E.identity(p.url)).split(':').at(-1)}
+ globalThis.CopyfeedResearch={rank,filter,csv,tsv,srt,filename};
+})();
