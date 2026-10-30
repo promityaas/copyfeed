@@ -34,6 +34,7 @@
   const transcriptPanel=el('section','cf-transcript-panel');transcriptPanel.hidden=true;
   transcriptPanel.setAttribute('role','dialog');transcriptPanel.setAttribute('aria-label','Reel transcript');
   const transcriptHeading=el('strong','','Transcript'),transcriptStatus=el('p','cf-muted'),transcriptText=el('textarea');
+  const languageSelect=el('select');languageSelect.setAttribute('aria-label','Spoken language');for(const [value,label] of [['auto','Automatic detection'],['hindi','Hindi / हिन्दी / Hinglish'],['english','English']]){const option=el('option','',label);option.value=value;languageSelect.append(option)}
   transcriptText.setAttribute('aria-label','Reel transcript text');transcriptText.placeholder='Your transcript will appear here.';
   transcriptText.oninput=()=>{transcriptEdited=true};transcriptStatus.setAttribute('role','status');
   const transcriptTop=el('div','cf-progress-row');
@@ -42,7 +43,7 @@
   const transcriptRetry=button('Transcribe again',()=>transcribeInline(true),'cf-primary');
   const transcriptCancel=button('Cancel',()=>action(async()=>{const r=await send({type:'studio-cancel'});job=r.job;syncTranscript()}));
   transcriptActions.append(button('Copy text',()=>action(async()=>{await navigator.clipboard.writeText(transcriptText.value);transcriptStatus.textContent='Copied.'})),button('Save text',()=>action(async()=>{if(!transcriptPost)return;transcriptPost=await update({...transcriptPost,transcript:transcriptText.value});transcriptEdited=false;transcriptStatus.textContent='Transcript saved.'})),button('TXT',()=>save('copyfeed-transcript.txt',transcriptText.value)),transcriptRetry,transcriptCancel);
-  transcriptPanel.append(transcriptTop,transcriptStatus,transcriptText,transcriptActions,el('small','cf-muted','English · On your device · One reel at a time. The first transcript may take longer while the speech model downloads.'));
+  transcriptPanel.append(transcriptTop,el('label','cf-language-label','Spoken language'),languageSelect,transcriptStatus,transcriptText,transcriptActions,el('small','cf-muted','Hindi, Hinglish and English · Local model · Audio stays on this device. First use downloads a multilingual model.'));
   transcriptPanel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();transcriptPanel.hidden=true;transcriptPost=null}});root.append(transcriptPanel);
   function syncTranscript(){
     if(!transcriptPost)return;
@@ -52,20 +53,19 @@
     if(result&&!transcriptEdited){transcriptPost=E.merge(transcriptPost,result);transcriptText.value=result.transcript}
     const working=job?.phase==='running'&&item&&!['complete','error'].includes(item.state);
     transcriptCancel.hidden=!working||job?.engine==='cloud';transcriptRetry.disabled=working;
-    transcriptRetry.textContent=transcriptPost.platform==='youtube'?'Retrieve native captions':transcriptText.value?'Transcribe again':'Transcribe';const language=CopyfeedLanguage.check(transcriptPost);if(language.state==='non-English'&&transcriptPost.platform!=='youtube'){transcriptRetry.disabled=true;transcriptStatus.textContent=language.reason;}
+    transcriptRetry.textContent=transcriptPost.platform==='youtube'?'Retrieve native captions':transcriptText.value?'Transcribe again':'Transcribe';if(transcriptPost.platform==='youtube')languageSelect.disabled=true;else languageSelect.disabled=false;
     transcriptStatus.textContent=item?.error|| (working?job.message:transcriptText.value?'Review the transcript before using it.':job?.phase==='cancelled'?'Transcription stopped.':'Ready to transcribe this reel.');
   }
   async function transcribeInline(force=false){
     if(!transcriptPost)return;
     await action(async()=>{
       if(transcriptPost.platform==='youtube'){const r=await send({type:'native-captions',post:transcriptPost});if(r.status!=='available')throw Error(r.message);transcriptPost=await update({...transcriptPost,transcript:r.text,transcriptSegments:r.segments,captionTrack:r.track,...(r.audioLanguage?{audioLanguage:r.audioLanguage}:{})});transcriptText.value=r.text;transcriptStatus.textContent='Native captions · '+r.track.language+' · '+(r.track.auto?'automatic':'manual');return;}
-      const language=CopyfeedLanguage.check(transcriptPost);if(language.state==='non-English')throw Error('English-only transcription disabled. '+language.reason+' Use native captions.');let languageConfirmed=false;if(language.state==='uncertain'){languageConfirmed=await confirmLanguage();if(!languageConfirmed)return;}
-      transcriptStatus.textContent='Starting transcription…';
-      const result=await send({type:'studio-start',kind:'transcribe',engine:'local',language:'english',languageConfirmed,posts:[force?{...transcriptPost,transcript:''}:transcriptPost]});
+      const selectedLanguage=languageSelect.value;CopyfeedLanguage.assert(transcriptPost,selectedLanguage);
+      transcriptStatus.textContent='Starting '+(selectedLanguage==='auto'?'automatic':selectedLanguage)+' transcription…';
+      const result=await send({type:'studio-start',kind:'transcribe',engine:'local',language:selectedLanguage,languageConfirmed:true,posts:[force?{...transcriptPost,transcript:''}:transcriptPost]});
       job=result.job;syncTranscript();renderProgress();
     });
   }
-  function confirmLanguage(){return new Promise(resolve=>{const d=el('dialog','cf-confirm');d.append(el('h2','','Spoken language uncertain'),el('p','',CopyfeedLanguage.warning),button('Cancel',()=>d.close()),button('I understand — continue',()=>{d.returnValue='continue';d.close()}));root.append(d);d.addEventListener('close',()=>{resolve(d.returnValue==='continue');d.remove()},{once:true});d.showModal();});}
   async function openTranscript(p){
     transcriptPost=posts.find(x=>x.id===p.id)||p;transcriptEdited=false;
     transcriptHeading.textContent='Transcript · @'+(transcriptPost.creator||'creator');
@@ -73,7 +73,7 @@
     (player.open?player:root).append(transcriptPanel);transcriptPanel.hidden=false;
     syncTranscript();
     const activeItem=job?.kind==='transcribe'&&job.phase==='running'&&job.items.some(x=>x.post.id===p.id);
-    if(!transcriptPost.transcript&&!activeItem)transcriptStatus.textContent=transcriptPost.platform==='youtube'?'Retrieve accessible native captions from the original video tab.':CopyfeedLanguage.check(transcriptPost).state==='non-English'?'English-only transcription disabled: '+CopyfeedLanguage.check(transcriptPost).reason:'English transcription runs on your device. Spoken language is checked before processing.';
+    if(!transcriptPost.transcript&&!activeItem)transcriptStatus.textContent=transcriptPost.platform==='youtube'?'Retrieve accessible native captions from the original video tab.':'Choose Automatic, Hindi or English. Transcription runs on your device.';
   }
   const removeDialog=el('dialog','cf-confirm'),removeText=el('p');removeDialog.append(el('h2','','Delete references?'),removeText,button('Keep references',()=>removeDialog.close()));root.append(removeDialog);let deleteIds=[];removeDialog.append(button('Delete selected',()=>action(async()=>{await send({type:'delete-posts',ids:deleteIds});selection.clear();removeDialog.close();await refresh()}),'cf-danger'));
   function confirmDelete(ids){deleteIds=ids;removeText.textContent=`Delete ${ids.length} posts from this browser? Website copies remain available.`;removeDialog.showModal()}
